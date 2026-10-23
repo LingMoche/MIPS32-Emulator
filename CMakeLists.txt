@@ -32,8 +32,6 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
-FetchContent_MakeAvailable(googletest)
-
 enable_testing()
 
 add_executable(assembler_tests
