@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(assembler
     assembler/source_reader.cpp
     assembler/tokenizer.cpp
+    assembler/registers.cpp
     error.cpp
 )
 
@@ -38,6 +39,7 @@ enable_testing()
 add_executable(assembler_tests
     tests/source_reader_test.cpp
     tests/tokenizer_test.cpp
+    tests/registers_test.cpp
 )
 
 target_link_libraries(
