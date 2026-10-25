@@ -152,6 +152,41 @@ TEST(ParseNumberTest, IncludesLineNumberInEveryErrorKind) {
         "Line 64: Integer does not fit in 16 signed bits: 999999999999999999999999999");
 }
 
+TEST(ParseNumberTest, EnforcesBoundariesForEverySupportedSignedWidth) {
+    for (int bits = 1; bits <= 32; ++bits) {
+        SCOPED_TRACE(bits);
+        const long long minimum = -(1LL << (bits - 1));
+        const long long maximum = (1LL << (bits - 1)) - 1;
+        EXPECT_EQ(parseNumber(std::to_string(minimum), bits, false), minimum);
+        EXPECT_EQ(parseNumber(std::to_string(maximum), bits, false), maximum);
+        for (const long long value : {minimum - 1, maximum + 1}) {
+            const std::string token = std::to_string(value);
+            SCOPED_TRACE(token);
+            expectErrorMessage(
+                [&] { parseNumber(token, bits, false); },
+                "Integer does not fit in " + std::to_string(bits) +
+                    " signed bits: " + token);
+        }
+    }
+}
+
+TEST(ParseNumberTest, EnforcesBoundariesForEverySupportedUnsignedWidth) {
+    for (int bits = 1; bits <= 31; ++bits) {
+        SCOPED_TRACE(bits);
+        const long long maximum = (1LL << bits) - 1;
+        EXPECT_EQ(parseNumber("0", bits, true), 0);
+        EXPECT_EQ(parseNumber(std::to_string(maximum), bits, true), maximum);
+        for (const long long value : {-1LL, maximum + 1}) {
+            const std::string token = std::to_string(value);
+            SCOPED_TRACE(token);
+            expectErrorMessage(
+                [&] { parseNumber(token, bits, true); },
+                "Integer does not fit in " + std::to_string(bits) +
+                    " unsigned bits: " + token);
+        }
+    }
+}
+
 TEST(ParserTest, ParsesAdd) {
     std::vector<std::string> tokens = {
         "add",
@@ -309,6 +344,7 @@ TEST(ParserTest, ParsesEverySupportedMnemonicAndInitializesUnusedFields) {
         EXPECT_EQ(inst.rd, testCase.rd);
         EXPECT_EQ(inst.shamt, testCase.shamt);
         EXPECT_EQ(inst.immediate, testCase.immediate);
+        EXPECT_EQ(inst.target, 0u);
         EXPECT_EQ(inst.label, testCase.label);
     }
     EXPECT_EQ(coveredMnemonics.size(), instructionInfos.size());
@@ -538,5 +574,38 @@ TEST(ParserTest, ParsesTokenizedMemorySyntaxForEveryMemoryInstruction) {
             EXPECT_EQ(inst.rs, 29);
             EXPECT_EQ(inst.immediate, -16);
         }
+    }
+}
+
+TEST(ParserTest, PreservesRegisterNumberBoundariesForEveryRegisterFormat) {
+    struct Case {
+        std::vector<std::string> tokens;
+        int rs;
+        int rt;
+        int rd;
+    };
+    const std::vector<Case> cases = {
+        {{"add", "$zero", "$ra", "$zero"}, 31, 0, 0},
+        {{"add", "$ra", "$zero", "$ra"}, 0, 31, 31},
+        {{"sll", "$zero", "$ra", "0"}, 0, 31, 0},
+        {{"sll", "$ra", "$zero", "31"}, 0, 0, 31},
+        {{"jr", "$zero"}, 0, 0, 0},
+        {{"jr", "$ra"}, 31, 0, 0},
+        {{"addi", "$zero", "$ra", "-32768"}, 31, 0, 0},
+        {{"addi", "$ra", "$zero", "32767"}, 0, 31, 0},
+        {{"lui", "$zero", "0"}, 0, 0, 0},
+        {{"lui", "$ra", "65535"}, 0, 31, 0},
+        {{"lw", "$zero", "0", "$ra"}, 31, 0, 0},
+        {{"lw", "$ra", "0", "$zero"}, 0, 31, 0},
+        {{"beq", "$zero", "$ra", "target"}, 0, 31, 0},
+        {{"beq", "$ra", "$zero", "target"}, 31, 0, 0},
+    };
+
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(::testing::PrintToString(testCase.tokens));
+        const Instruction inst = parseInstruction(testCase.tokens);
+        EXPECT_EQ(inst.rs, testCase.rs);
+        EXPECT_EQ(inst.rt, testCase.rt);
+        EXPECT_EQ(inst.rd, testCase.rd);
     }
 }

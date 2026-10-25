@@ -5,6 +5,8 @@ project(MIPS32_Emulator)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(ENABLE_COVERAGE "Instrument the assembler for gcov coverage (GCC)" OFF)
+
 add_library(assembler
     assembler/source_reader.cpp
     assembler/tokenizer.cpp
@@ -22,6 +24,14 @@ add_library(assembler
 target_include_directories(assembler PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+if(ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "ENABLE_COVERAGE requires GCC and its matching gcov")
+    endif()
+    target_compile_options(assembler PRIVATE --coverage -O0 -g)
+    target_link_options(assembler PUBLIC --coverage)
+endif()
 
 add_executable(mips
     main.cpp

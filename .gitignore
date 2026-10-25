@@ -2,3 +2,5 @@
 *.o
 *.out
 build/
+script/
+TESTING.md

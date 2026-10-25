@@ -43,3 +43,30 @@ TEST(TokenizerTest, TokenizesLinesWithOnlyComments) {
 TEST(TokenizerTest, TokenizesLinesWithOnlyWhitespace) {
     EXPECT_TRUE(tokenize("   ").empty());
 }
+
+TEST(TokenizerTest, StopsAtFirstCommentMarkerWithoutRequiringWhitespace) {
+    const std::vector<std::string> expected = {"add", "$t0", "$t1", "$t2"};
+    for (const std::string suffix : {"#comment", "# (malformed, operands)",
+                                     "## another # comment"}) {
+        SCOPED_TRACE(suffix);
+        EXPECT_EQ(tokenize("add $t0,$t1,$t2" + suffix), expected);
+    }
+    EXPECT_TRUE(tokenize("#add $t0,$t1,$t2").empty());
+    EXPECT_EQ(tokenize("addi $t0,$t1,12#34"),
+              (std::vector<std::string>{"addi", "$t0", "$t1", "12"}));
+}
+
+TEST(TokenizerTest, HandlesTabsCarriageReturnsAndSpacedMemoryOperands) {
+    EXPECT_EQ(tokenize("\tlw\t$ra,\t-0x10($zero)\r"),
+              (std::vector<std::string>{"lw", "$ra", "-0x10", "$zero"}));
+    EXPECT_EQ(tokenize(" lw $t0 , 010 ( $sp ) "),
+              (std::vector<std::string>{"lw", "$t0", "010", "$sp"}));
+    EXPECT_TRUE(tokenize("\t\r \t").empty());
+}
+
+TEST(TokenizerTest, PreservesNumericSpellingAndSymbolCharacters) {
+    EXPECT_EQ(tokenize("addi $t0, $zero, +0X1F"),
+              (std::vector<std::string>{"addi", "$t0", "$zero", "+0X1F"}));
+    EXPECT_EQ(tokenize("beq $t0,$t1,a.b$c_9 # label reference"),
+              (std::vector<std::string>{"beq", "$t0", "$t1", "a.b$c_9"}));
+}
