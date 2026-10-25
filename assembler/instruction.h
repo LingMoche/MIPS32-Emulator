@@ -13,5 +13,7 @@ struct Instruction {
     uint8_t shamt = 0;
     int32_t immediate = 0;
 
+    uint32_t target = 0;
+
     std::string label;
 };
