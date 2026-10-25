@@ -14,6 +14,7 @@ add_library(assembler
     assembler/encoder.cpp
     assembler/symbol_table.cpp
     assembler/label_resolver.cpp
+    assembler/assembler.cpp
     error.cpp
 )
 
@@ -49,6 +50,7 @@ add_executable(assembler_tests
     tests/encoder_test.cpp
     tests/symbol_table_test.cpp
     tests/label_resolver_test.cpp
+    tests/assembler_test.cpp
 )
 
 target_link_libraries(
