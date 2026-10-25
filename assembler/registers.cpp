@@ -1,9 +1,7 @@
 #include "registers.h"
 #include "../error.h"
 
-#include <stdexcept>
-
-int parseRegister(const std::string& name) {
+int parseRegister(const std::string& name, int lineNumber) {
     static const std::unordered_map<std::string, int> registers = {
         {"$zero", 0},
         {"$at", 1},
@@ -38,11 +36,9 @@ int parseRegister(const std::string& name) {
         {"$fp", 30},
         {"$ra", 31},
     };
-    try {
-        return registers.at(name);
+    auto it = registers.find(name);
+    if (it == registers.end()) {
+        error(name, "Invalid register name", lineNumber);
     }
-    catch (std::out_of_range) {
-        error("Invalid register name: ", name);
-        exit(1);
-    }
-}   
+    return it->second;
+}
