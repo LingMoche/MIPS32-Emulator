@@ -1,5 +1,6 @@
 #include "symbol_table.h"
 
+#include "label.h"
 #include "tokenizer.h"
 #include "../memory_layout.h"
 #include "../error.h"
@@ -19,9 +20,7 @@ std::string parseLabel(
     std::string label = tokens[0];
     label.pop_back();
 
-    if (label.empty()) {
-        error("Invalid empty label", "", lineNumber);
-    }
+    validateLabelName(label, lineNumber);
 
     return label;
 }

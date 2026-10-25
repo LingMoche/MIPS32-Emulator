@@ -1,32 +1,11 @@
 #include "parser.h"
 
 #include "instruction_table.h"
+#include "label.h"
 #include "registers.h"
 #include "../error.h"
 
-#include <algorithm>
 #include <stdexcept>
-
-namespace {
-
-bool isLabelStart(char character) {
-    return (character >= 'a' && character <= 'z') ||
-           (character >= 'A' && character <= 'Z') ||
-           character == '_' || character == '.' || character == '$';
-}
-
-std::string parseLabel(const std::string& token, int lineNumber) {
-    if (token.empty() || !isLabelStart(token.front()) ||
-        !std::all_of(token.begin(), token.end(), [](char character) {
-            return isLabelStart(character) ||
-                   (character >= '0' && character <= '9');
-        })) {
-        error(token, "Invalid label", lineNumber);
-    }
-    return token;
-}
-
-} // namespace
 
 int32_t parseNumber(const std::string& token, int bits, bool isUnsigned,
                     int lineNumber) {
@@ -157,7 +136,8 @@ Instruction parseInstruction(const std::vector<std::string>& tokens,
 
             inst.rs = parseRegister(tokens[1], lineNumber);
             inst.rt = parseRegister(tokens[2], lineNumber);
-            inst.label = parseLabel(tokens[3], lineNumber);
+            validateLabelName(tokens[3], lineNumber);
+            inst.label = tokens[3];
             break;
 
         case OperandFormat::TARGET:
@@ -165,7 +145,8 @@ Instruction parseInstruction(const std::vector<std::string>& tokens,
                 error(mnemonic, "Expect 1 operand", lineNumber);
             }
 
-            inst.label = parseLabel(tokens[1], lineNumber);
+            validateLabelName(tokens[1], lineNumber);
+            inst.label = tokens[1];
             break;
 
         default:

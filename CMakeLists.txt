@@ -10,6 +10,7 @@ add_library(assembler
     assembler/tokenizer.cpp
     assembler/registers.cpp
     assembler/instruction_table.cpp
+    assembler/label.cpp
     assembler/parser.cpp
     assembler/encoder.cpp
     assembler/symbol_table.cpp

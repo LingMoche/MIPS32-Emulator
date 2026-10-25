@@ -13,7 +13,6 @@ int32_t parseNumber(const std::string& token, int bits, bool isUnsigned,
                     int lineNumber = 0);
 
 // Parses one instruction after tokenize() has removed commas and parentheses.
-// Branches and jumps retain symbolic labels for later resolution. Labels start
-// with an ASCII letter, '_', '.', or '$'; subsequent characters may be digits.
+// Branches and jumps retain symbolic labels for later resolution.
 Instruction parseInstruction(const std::vector<std::string>& tokens,
                              int lineNumber = 0);
