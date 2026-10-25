@@ -11,6 +11,8 @@ add_library(assembler
     assembler/registers.cpp
     assembler/instruction_table.cpp
     assembler/parser.cpp
+    assembler/encoder.cpp
+    assembler/symbol_table.cpp
     error.cpp
 )
 
@@ -43,6 +45,8 @@ add_executable(assembler_tests
     tests/tokenizer_test.cpp
     tests/registers_test.cpp
     tests/parser_test.cpp
+    tests/encoder_test.cpp
+    tests/symbol_table_test.cpp
 )
 
 target_link_libraries(
