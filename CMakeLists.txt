@@ -9,6 +9,8 @@ add_library(assembler
     assembler/source_reader.cpp
     assembler/tokenizer.cpp
     assembler/registers.cpp
+    assembler/instruction_table.cpp
+    assembler/parser.cpp
     error.cpp
 )
 
@@ -40,6 +42,7 @@ add_executable(assembler_tests
     tests/source_reader_test.cpp
     tests/tokenizer_test.cpp
     tests/registers_test.cpp
+    tests/parser_test.cpp
 )
 
 target_link_libraries(
