@@ -18,6 +18,7 @@ add_library(assembler
     assembler/symbol_table.cpp
     assembler/label_resolver.cpp
     assembler/assembler.cpp
+    assembler/output_writer.cpp
     error.cpp
 )
 
@@ -62,6 +63,7 @@ add_executable(assembler_tests
     tests/symbol_table_test.cpp
     tests/label_resolver_test.cpp
     tests/assembler_test.cpp
+    tests/output_writer_test.cpp
 )
 
 target_link_libraries(
@@ -73,3 +75,11 @@ target_link_libraries(
 
 include(GoogleTest)
 gtest_discover_tests(assembler_tests)
+
+add_test(
+    NAME cli_tests
+    COMMAND ${CMAKE_COMMAND}
+        "-DMIPS_EXECUTABLE=$<TARGET_FILE:mips>"
+        "-DTEST_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/cli_test"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cli_test.cmake"
+)
