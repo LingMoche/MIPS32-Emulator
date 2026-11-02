@@ -1,12 +1,8 @@
+
 #include <gtest/gtest.h>
 
 #include "emulator/memory.h"
 #include "memory_layout.h"
-
-#include <cstdint>
-#include <vector>
-
-
 
 TEST(MemoryTest, WritesAndReadsByte) {
     Memory memory(TEXT_BASE, 1024);
@@ -36,10 +32,7 @@ TEST(MemoryTest, ReadsLittleEndianWord) {
 TEST(MemoryTest, WritesLittleEndianWord) {
     Memory memory(TEXT_BASE, 1024);
 
-    memory.writeWord(
-        TEXT_BASE,
-        0x20080005
-    );
+    memory.writeWord(TEXT_BASE, 0x20080005u);
 
     EXPECT_EQ(memory.readByte(TEXT_BASE),     0x05);
     EXPECT_EQ(memory.readByte(TEXT_BASE + 1), 0x00);
