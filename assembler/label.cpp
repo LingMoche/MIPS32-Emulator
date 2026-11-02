@@ -1,6 +1,6 @@
 #include "label.h"
 
-#include "../error.h"
+#include "error.h"
 
 #include <algorithm>
 

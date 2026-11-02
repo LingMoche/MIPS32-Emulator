@@ -1,6 +1,6 @@
 #include "label_resolver.h"
 
-#include "../error.h"
+#include "error.h"
 
 void resolveLabel(
     Instruction& inst,

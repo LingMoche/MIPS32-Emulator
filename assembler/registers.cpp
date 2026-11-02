@@ -1,5 +1,5 @@
 #include "registers.h"
-#include "../error.h"
+#include "error.h"
 
 int parseRegister(const std::string& name, int lineNumber) {
     static const std::unordered_map<std::string, int> registers = {

@@ -1,7 +1,7 @@
 #include "encoder.h"
 
 #include "instruction_table.h"
-#include "../error.h"
+#include "error.h"
 #include "symbol_table.h"
 
 uint32_t encodeInstruction(const Instruction& inst, int lineNumber) {

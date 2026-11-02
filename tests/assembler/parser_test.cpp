@@ -3,7 +3,7 @@
 #include "assembler/parser.h"
 #include "assembler/instruction_table.h"
 #include "assembler/tokenizer.h"
-#include "error.h"
+#include "assembler/error.h"
 
 #include <limits>
 #include <stdexcept>

@@ -1,6 +1,6 @@
 #include "output_writer.h"
 
-#include "../error.h"
+#include "error.h"
 
 #include <fstream>
 #include <iomanip>

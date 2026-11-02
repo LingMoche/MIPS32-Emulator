@@ -14,6 +14,11 @@ cmake --build build
 ctest --test-dir build --output-on-failure -j 4
 ```
 
+Assembler unit tests and CLI tests live in `tests/assembler/`. Run only this
+group with `ctest --test-dir build -L assembler --output-on-failure`.
+`tests/emulator/` is reserved for emulator tests; none are registered yet.
+Assembler error handling lives in `assembler/error.h` and `assembler/error.cpp`.
+
 ## CLI usage
 
 ```powershell

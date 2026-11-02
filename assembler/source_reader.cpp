@@ -1,5 +1,5 @@
 #include "source_reader.h"
-#include "../error.h"
+#include "error.h"
 
 #include <fstream>
 

@@ -3,7 +3,7 @@
 #include "instruction_table.h"
 #include "label.h"
 #include "registers.h"
-#include "../error.h"
+#include "error.h"
 
 #include <stdexcept>
 

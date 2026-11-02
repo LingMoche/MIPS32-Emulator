@@ -3,7 +3,7 @@
 #include "label.h"
 #include "tokenizer.h"
 #include "../memory_layout.h"
-#include "../error.h"
+#include "error.h"
 
 
 bool isLabel(const std::vector<std::string>& tokens) {
