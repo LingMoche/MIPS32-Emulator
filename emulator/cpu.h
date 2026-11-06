@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 
 #include "emulator/memory.h"
 #include "memory_layout.h"
@@ -21,6 +22,9 @@ public:
 
     // Program counter
     uint32_t getPC() const;
+
+    // Print PC and all general-purpose registers without changing CPU state.
+    void printState(std::ostream& output = std::cout) const;
 
     // Execute one instruction, without branch delay slots (jal links PC + 4).
     // Execution errors throw before committing changes to CPU state or memory.

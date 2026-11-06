@@ -1,6 +1,8 @@
 #include "emulator/cpu.h"
 
 #include <limits>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 
 namespace {
@@ -55,6 +57,24 @@ void CPU::setRegister(uint8_t index, uint32_t value) {
 
 uint32_t CPU::getPC() const {
     return pc_;
+}
+
+void CPU::printState(std::ostream& output) const {
+    static constexpr const char* names[] = {
+        "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+        "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+        "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+        "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra"
+    };
+    std::ostringstream text;
+    text << "CPU state\n" << std::hex << std::uppercase << std::setfill('0')
+         << "PC = 0x" << std::setw(8) << pc_ << '\n';
+    for (std::size_t i = 0; i < registers_.size(); ++i) {
+        text << '$' << names[i] << " (r" << std::dec << i << ") = 0x"
+             << std::hex << std::setw(8) << registers_[i] << '\n';
+    }
+    const auto state = text.str();
+    output.write(state.data(), static_cast<std::streamsize>(state.size()));
 }
 
 void CPU::step() {
