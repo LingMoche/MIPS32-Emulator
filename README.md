@@ -1,7 +1,8 @@
 # MIPS32 Emulator
 
-The project currently provides a MIPS32 assembler that converts assembly source
-into hexadecimal text or binary machine code.
+The project provides a MIPS32 assembler that converts assembly source into
+hexadecimal text or binary machine code, and a CPU library that executes the
+31 instructions supported by the assembler. The CLI currently runs the assembler.
 
 ## Build and test
 
@@ -16,8 +17,32 @@ ctest --test-dir build --output-on-failure -j 4
 
 Assembler unit tests and CLI tests live in `tests/assembler/`. Run only this
 group with `ctest --test-dir build -L assembler --output-on-failure`.
-`tests/emulator/` is reserved for emulator tests; none are registered yet.
+CPU, memory, and loader tests live in `tests/emulator/`. Run them with
+`ctest --test-dir build -L emulator --output-on-failure`.
 Assembler error handling lives in `assembler/error.h` and `assembler/error.cpp`.
+
+## CPU execution
+
+`CPU::step()` fetches and executes one instruction. Supported instructions are
+`add`, `addu`, `sub`, `subu`, `and`, `or`, `xor`, `nor`, `slt`, `sltu`,
+`sll`, `srl`, `sra`, `jr`, `addi`, `addiu`, `andi`, `ori`, `xori`,
+`slti`, `sltiu`, `lui`, `lw`, `sw`, `lb`, `lbu`, `sb`, `beq`, `bne`,
+`j`, and `jal`. The all-zero instruction executes as `nop`.
+
+This emulator uses a simplified control-flow convention with **no delay slots**:
+taken branches and jumps change the PC immediately, and `jal` saves `PC + 4`
+in `$ra`. This differs from classic MIPS32 delayed branches and its `PC + 8`
+return address. Branch offsets are signed instruction counts relative to `PC + 4`;
+absolute jumps combine the upper four bits of `PC + 4` with the shifted target.
+
+Signed `add`, `addi`, and `sub` throw `std::overflow_error` on overflow;
+unsigned arithmetic wraps modulo 2^32. Logical immediates are zero-extended;
+arithmetic, comparison, and memory offsets are sign-extended (including `sltiu`).
+Word accesses and register jump targets must be four-byte aligned. Memory is
+little-endian; byte accesses may use any address. Unsupported instructions,
+misalignment, and invalid memory accesses throw `std::runtime_error`.
+Failed instructions leave the PC, registers, and memory unchanged. Exceptions
+are reported to the caller; architectural exception registers are not modeled.
 
 ## CLI usage
 
