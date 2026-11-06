@@ -42,6 +42,8 @@ target_include_directories(assembler PUBLIC
 add_library(emulator
     emulator/memory.cpp
     emulator/loader.cpp
+    emulator/cpu.cpp
+    emulator/decoder.cpp
 )
 
 target_include_directories(emulator PUBLIC
@@ -133,6 +135,7 @@ gtest_discover_tests(assembler_tests
 add_executable(emulator_tests
     tests/emulator/memory_test.cpp
     tests/emulator/loader_test.cpp
+    tests/emulator/cpu_test.cpp
 )
 
 target_link_libraries(emulator_tests PRIVATE
