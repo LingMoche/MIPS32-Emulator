@@ -7,7 +7,39 @@
 
 #include <cstdint>
 #include <ostream>
+#include <sstream>
 #include <stdexcept>
+
+TEST(CPUTest, PrintsCurrentStateWithoutChangingCPUOrStreamFormatting) {
+    Memory memory(TEXT_BASE, 16);
+    memory.writeWord(TEXT_BASE, 0x24080005u); // addiu $t0, $zero, 5
+    CPU cpu(memory);
+    cpu.step();
+    cpu.setRegister(31, 0xFFFFFFFFu);
+    std::ostringstream output;
+    output.fill('*');
+    output.width(12);
+    const auto flags = output.flags();
+    cpu.printState(output);
+
+    const auto state = output.str();
+    EXPECT_NE(state.find("PC = 0x00400004\n"), std::string::npos);
+    EXPECT_NE(state.find("$zero (r0) = 0x00000000\n"), std::string::npos);
+    EXPECT_NE(state.find("$t0 (r8) = 0x00000005\n"), std::string::npos);
+    EXPECT_NE(state.find("$sp (r29) = 0x7FFFFFFC\n"), std::string::npos);
+    EXPECT_NE(state.find("$ra (r31) = 0xFFFFFFFF\n"), std::string::npos);
+    for (int i = 0; i < 32; ++i) {
+        EXPECT_NE(state.find(" (r" + std::to_string(i) + ") = 0x"),
+                  std::string::npos);
+    }
+    EXPECT_EQ(cpu.getPC(), TEXT_BASE + 4);
+    EXPECT_EQ(cpu.getRegister(8), 5u);
+    EXPECT_EQ(cpu.getRegister(31), 0xFFFFFFFFu);
+    EXPECT_EQ(memory.readWord(TEXT_BASE), 0x24080005u);
+    EXPECT_EQ(output.flags(), flags);
+    EXPECT_EQ(output.fill(), '*');
+    EXPECT_EQ(output.width(), 12);
+}
 
 TEST(CPUTest, InitializesRegisters) {
     Memory memory(TEXT_BASE, 1024);
