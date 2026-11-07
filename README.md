@@ -44,6 +44,30 @@ misalignment, and invalid memory accesses throw `std::runtime_error`.
 Failed instructions leave the PC, registers, and memory unchanged. Exceptions
 are reported to the caller; architectural exception registers are not modeled.
 
+## Printing runtime state
+
+Call these read-only methods whenever a runtime snapshot is needed:
+
+```cpp
+cpu.printState();                         // PC and all 32 registers to stdout
+memory.printState();                      // All mapped regions, including stack
+memory.printState(TEXT_BASE, 64);          // 64 bytes starting at TEXT_BASE
+
+std::ostringstream snapshot;              // Include <sstream>
+cpu.printState(snapshot);
+memory.printState(TEXT_BASE, 16, snapshot);
+```
+
+CPU output includes register aliases and numeric indices, with eight-digit
+uppercase hexadecimal values. Memory output includes the starting address and
+byte count, followed by up to 16 hexadecimal bytes per addressed row in increasing
+address order. The final row may be shorter; byte ranges need not be aligned.
+Each mapped region has its own header; a requested range must fit within one
+region. Invalid ranges throw `std::runtime_error` before any output is written.
+A zero-byte range prints only its header and may start at the end of a region.
+Printing preserves CPU state, memory contents, and the output stream's formatting.
+The CLI remains an assembler; these methods are called from emulator code.
+
 ## CLI usage
 
 ```powershell
@@ -162,6 +186,27 @@ $sp = 0x7FFFFFFC
 ```
 
 The stack grows toward lower addresses.
+
+`Memory(baseAddress, size)` maps the requested program memory and a separate,
+zero-initialized 1 MiB stack at `STACK_BASE = 0x7FF00000` through `0x7FFFFFFF`
+(inclusive). `STACK_TOP` is the address of the highest four-byte stack word, so
+`sw $t0, 0($sp)` is valid at the initial stack pointer. The gap between program
+memory and the stack is unmapped and consumes no backing storage.
+
+```cpp
+Memory memory(TEXT_BASE, 64 * 1024);       // 64 KiB program memory + 1 MiB stack
+CPU cpu(memory);                         // PC = TEXT_BASE, $sp = STACK_TOP
+
+Memory smallStack(TEXT_BASE, 1024, 4096);  // Optional 4 KiB stack
+Memory programOnly(TEXT_BASE, 1024, 0);    // Disable stack mapping
+```
+
+A custom stack size must be a multiple of four and ends at `0x80000000`
+(exclusive). Overlapping regions and regions outside the 32-bit address space
+are rejected. Accesses outside a mapped region throw `std::runtime_error`;
+failed word stores leave memory unchanged. Changing `$sp` alone does not access
+memory or enforce stack bounds; the subsequent load/store performs that check.
+`CPU::reset()` restores `$sp` but preserves stack contents, as it does all memory.
 
 ### Data segment
 

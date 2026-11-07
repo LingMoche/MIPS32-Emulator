@@ -50,6 +50,57 @@ TEST(CPUTest, InitializesRegisters) {
     EXPECT_EQ(cpu.getPC(), TEXT_BASE);
 }
 
+TEST(CPUTest, StoresAndLoadsAtInitialStackPointer) {
+    const auto words = assemble({
+        {1, "sw $t0, 0($sp)"},
+        {2, "lw $t1, 0($sp)"},
+        {3, "sb $t0, 3($sp)"},
+        {4, "lb $t2, 3($sp)"},
+        {5, "lbu $t3, 3($sp)"}
+    });
+    Memory memory(TEXT_BASE, words.size() * 4);
+    for (std::size_t i = 0; i < words.size(); ++i) {
+        memory.writeWord(TEXT_BASE + static_cast<uint32_t>(i * 4), words[i]);
+    }
+    CPU cpu(memory);
+    cpu.setRegister(8, 0x12345680u);
+    cpu.step();
+    EXPECT_EQ(memory.readWord(STACK_TOP), 0x12345680u);
+    cpu.step();
+    EXPECT_EQ(cpu.getRegister(9), 0x12345680u);
+    cpu.step();
+    EXPECT_EQ(memory.readWord(STACK_TOP), 0x80345680u);
+    cpu.step();
+    EXPECT_EQ(cpu.getRegister(10), 0xFFFFFF80u);
+    cpu.step();
+    EXPECT_EQ(cpu.getRegister(11), 0x80u);
+    EXPECT_EQ(cpu.getRegister(29), STACK_TOP);
+}
+
+TEST(CPUTest, StackBoundaryFaultsPreserveState) {
+    // lw, sw, lb, lbu and sb $t1, 0($sp).
+    for (const auto word : {0x8FA90000u, 0xAFA90000u, 0x83A90000u,
+                            0x93A90000u, 0xA3A90000u}) {
+        for (const auto address : {STACK_BASE - 4, STACK_TOP + 4}) {
+            SCOPED_TRACE(word);
+            SCOPED_TRACE(address);
+            Memory memory(TEXT_BASE, 4);
+            memory.writeWord(TEXT_BASE, word);
+            memory.writeWord(STACK_BASE, 0x11223344u);
+            memory.writeWord(STACK_TOP, 0xAABBCCDDu);
+            CPU cpu(memory);
+            cpu.setRegister(29, address);
+            cpu.setRegister(9, 123);
+            EXPECT_THROW(cpu.step(), std::runtime_error);
+            EXPECT_EQ(cpu.getPC(), TEXT_BASE);
+            EXPECT_EQ(cpu.getRegister(29), address);
+            EXPECT_EQ(cpu.getRegister(9), 123u);
+            EXPECT_EQ(memory.readWord(STACK_BASE), 0x11223344u);
+            EXPECT_EQ(memory.readWord(STACK_TOP), 0xAABBCCDDu);
+        }
+    }
+}
+
 TEST(CPUTest, ZeroRegisterIsImmutable) {
     Memory memory(TEXT_BASE, 1024);
     CPU cpu(memory);
