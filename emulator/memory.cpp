@@ -1,29 +1,46 @@
 #include "memory.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 
-Memory::Memory(uint32_t baseAddress, std::size_t size)
-    : baseAddress_(baseAddress),
-      data_(size, 0) {
+Memory::Memory(uint32_t baseAddress, std::size_t size, std::size_t stackSize) {
+    constexpr uint64_t addressSpaceSize = uint64_t{1} << 32;
+    constexpr uint64_t stackEnd = uint64_t{STACK_TOP} + 4;
+    if (size > addressSpaceSize - baseAddress) {
+        throw std::runtime_error("Memory region exceeds 32-bit address space");
+    }
+    if (stackSize > stackEnd || stackSize % 4 != 0) {
+        throw std::runtime_error("Invalid stack size");
+    }
+    const auto stackBase = static_cast<uint32_t>(stackEnd - stackSize);
+    if (size != 0 && stackSize != 0 && baseAddress < stackEnd &&
+        uint64_t{baseAddress} + size > stackBase) {
+        throw std::runtime_error("Memory region overlaps stack");
+    }
+
+    regions_.push_back({baseAddress, std::vector<uint8_t>(size, 0)});
+    if (stackSize != 0) {
+        regions_.push_back({stackBase, std::vector<uint8_t>(stackSize, 0)});
+        std::sort(regions_.begin(), regions_.end(),
+                  [](const Region& left, const Region& right) {
+                      return left.baseAddress < right.baseAddress;
+                  });
+    }
 }
 
 void Memory::printState(std::ostream& output) const {
-    printState(baseAddress_, data_.size(), output);
+    for (const auto& region : regions_) {
+        printState(region.baseAddress, region.data.size(), output);
+    }
 }
 
 void Memory::printState(uint32_t address, std::size_t size,
                         std::ostream& output) const {
-    if (address < baseAddress_) {
-        throw std::runtime_error("Memory address below base");
-    }
-    const auto start = static_cast<std::size_t>(address - baseAddress_);
-    if (start > data_.size() || size > data_.size() - start ||
-        (size != 0 && size - 1 > std::numeric_limits<uint32_t>::max() - address)) {
-        throw std::runtime_error("Memory range out of bounds");
-    }
+    const auto& region = regions_[findRegion(address, size)];
+    const auto start = static_cast<std::size_t>(address - region.baseAddress);
 
     std::ostringstream text;
     text << "Memory state: address=0x" << std::hex << std::uppercase
@@ -35,7 +52,7 @@ void Memory::printState(uint32_t address, std::size_t size,
                  << (address + static_cast<uint32_t>(offset)) << ':';
         }
         text << ' ' << std::hex << std::setw(2)
-             << static_cast<unsigned>(data_[start + offset]);
+             << static_cast<unsigned>(region.data[start + offset]);
         if (offset % 16 == 15 || offset == size - 1) {
             text << '\n';
         }
@@ -44,39 +61,44 @@ void Memory::printState(uint32_t address, std::size_t size,
     output.write(state.data(), static_cast<std::streamsize>(state.size()));
 }
 
-std::size_t Memory::toIndex(uint32_t address) const {
-    if (address < baseAddress_) {
-        throw std::runtime_error("Memory address below base");
+std::size_t Memory::findRegion(uint32_t address, std::size_t size) const {
+    if (size != 0 && size - 1 > std::numeric_limits<uint32_t>::max() - address) {
+        throw std::runtime_error("Memory range wraps around address space");
     }
-
-    std::size_t index =
-        static_cast<std::size_t>(address - baseAddress_);
-
-    if (index >= data_.size()) {
-        throw std::runtime_error("Memory address out of range");
+    for (std::size_t i = 0; i < regions_.size(); ++i) {
+        const auto& region = regions_[i];
+        if (address >= region.baseAddress) {
+            const auto offset = static_cast<std::size_t>(address - region.baseAddress);
+            if (offset <= region.data.size() && size <= region.data.size() - offset) {
+                return i;
+            }
+        }
     }
-
-    return index;
+    throw std::runtime_error("Memory range out of bounds");
 }
 
 uint8_t Memory::readByte(uint32_t address) const {
-    return data_[toIndex(address)];
+    const auto& region = regions_[findRegion(address, 1)];
+    return region.data[address - region.baseAddress];
 }
 
 void Memory::writeByte(
     uint32_t address,
     uint8_t value
 ) {
-    data_[toIndex(address)] = value;
+    auto& region = regions_[findRegion(address, 1)];
+    region.data[address - region.baseAddress] = value;
 }
 
 uint32_t Memory::readWord(
     uint32_t address
 ) const {
-    uint32_t b0 = readByte(address);
-    uint32_t b1 = readByte(address + 1);
-    uint32_t b2 = readByte(address + 2);
-    uint32_t b3 = readByte(address + 3);
+    const auto& region = regions_[findRegion(address, 4)];
+    const auto index = static_cast<std::size_t>(address - region.baseAddress);
+    uint32_t b0 = region.data[index];
+    uint32_t b1 = region.data[index + 1];
+    uint32_t b2 = region.data[index + 2];
+    uint32_t b3 = region.data[index + 3];
 
     return
         b0 |
@@ -89,23 +111,10 @@ void Memory::writeWord(
     uint32_t address,
     uint32_t value
 ) {
-    writeByte(
-        address,
-        static_cast<uint8_t>(value & 0xFF)
-    );
-
-    writeByte(
-        address + 1,
-        static_cast<uint8_t>((value >> 8) & 0xFF)
-    );
-
-    writeByte(
-        address + 2,
-        static_cast<uint8_t>((value >> 16) & 0xFF)
-    );
-
-    writeByte(
-        address + 3,
-        static_cast<uint8_t>((value >> 24) & 0xFF)
-    );
+    auto& region = regions_[findRegion(address, 4)];
+    const auto index = static_cast<std::size_t>(address - region.baseAddress);
+    // Validate the entire word before changing any byte.
+    for (std::size_t offset = 0; offset < 4; ++offset) {
+        region.data[index + offset] = static_cast<uint8_t>(value >> (offset * 8));
+    }
 }
