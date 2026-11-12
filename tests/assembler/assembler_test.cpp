@@ -23,6 +23,22 @@ TEST(AssemblerTest, RejectsSyscallOperandsWithLineNumber) {
     }
 }
 
+TEST(AssemblerTest, EncodesMultiplyDivideTransfersHalfwordsAndVariableShifts) {
+    EXPECT_EQ(assemble({
+        {1, "mult $t1, $t2"}, {2, "multu $t1, $t2"},
+        {3, "div $t1, $t2"}, {4, "divu $t1, $t2"},
+        {5, "mfhi $t0"}, {6, "mflo $t0"}, {7, "mthi $t1"}, {8, "mtlo $t1"},
+        {9, "sllv $t0, $t1, $t2"}, {10, "srlv $t0, $t1, $t2"},
+        {11, "srav $t0, $t1, $t2"}, {12, "lh $t0, -16($sp)"},
+        {13, "lhu $t0, -16($sp)"}, {14, "sh $t0, -16($sp)"}
+    }), (std::vector<uint32_t>{
+        0x012A0018u, 0x012A0019u, 0x012A001Au, 0x012A001Bu,
+        0x00004010u, 0x00004012u, 0x01200011u, 0x01200013u,
+        0x01494004u, 0x01494006u, 0x01494007u,
+        0x87A8FFF0u, 0x97A8FFF0u, 0xA7A8FFF0u
+    }));
+}
+
 namespace {
 
 class TemporaryAssemblyFile {

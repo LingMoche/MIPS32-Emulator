@@ -300,6 +300,20 @@ TEST(ParserTest, ParsesEverySupportedMnemonicAndInitializesUnusedFields) {
     };
     const std::vector<Case> cases = {
         {{"syscall"}, 0, 0, 0, 0, 0, ""},
+        {{"mult", "$t1", "$t2"}, 9, 10, 0, 0, 0, ""},
+        {{"multu", "$t1", "$t2"}, 9, 10, 0, 0, 0, ""},
+        {{"div", "$t1", "$t2"}, 9, 10, 0, 0, 0, ""},
+        {{"divu", "$t1", "$t2"}, 9, 10, 0, 0, 0, ""},
+        {{"mfhi", "$t0"}, 0, 0, 8, 0, 0, ""},
+        {{"mflo", "$t0"}, 0, 0, 8, 0, 0, ""},
+        {{"mthi", "$t1"}, 9, 0, 0, 0, 0, ""},
+        {{"mtlo", "$t1"}, 9, 0, 0, 0, 0, ""},
+        {{"sllv", "$t0", "$t1", "$t2"}, 10, 9, 8, 0, 0, ""},
+        {{"srlv", "$t0", "$t1", "$t2"}, 10, 9, 8, 0, 0, ""},
+        {{"srav", "$t0", "$t1", "$t2"}, 10, 9, 8, 0, 0, ""},
+        {{"lh", "$t0", "-20", "$sp"}, 29, 8, 0, 0, -20, ""},
+        {{"lhu", "$t0", "-20", "$sp"}, 29, 8, 0, 0, -20, ""},
+        {{"sh", "$t0", "-20", "$sp"}, 29, 8, 0, 0, -20, ""},
         {{"add", "$t0", "$t1", "$t2"}, 9, 10, 8, 0, 0, ""},
         {{"addu", "$t0", "$t1", "$t2"}, 9, 10, 8, 0, 0, ""},
         {{"sub", "$t0", "$t1", "$t2"}, 9, 10, 8, 0, 0, ""},
@@ -362,6 +376,9 @@ TEST(ParserTest, RejectsTooFewAndTooManyOperandsForEveryFormat) {
     const std::vector<Case> cases = {
         {{"add", "$t0", "$t1", "$t2"}, "Expect 3 operands: add"},
         {{"sll", "$t0", "$t1", "1"}, "Expect 3 operands: sll"},
+        {{"sllv", "$t0", "$t1", "$t2"}, "Expect 3 operands: sllv"},
+        {{"mfhi", "$t0"}, "Expect 1 operand: mfhi"},
+        {{"mult", "$t1", "$t2"}, "Expect 2 operands: mult"},
         {{"jr", "$ra"}, "Expect 1 operand: jr"},
         {{"addi", "$t0", "$t1", "1"}, "Expect 3 operands: addi"},
         {{"lui", "$t0", "1"}, "Expect 2 operands: lui"},
@@ -384,12 +401,45 @@ TEST(ParserTest, RejectsTooFewAndTooManyOperandsForEveryFormat) {
     }
 }
 
+TEST(ParserTest, RejectsImmediateVariableShiftsAndThreeOperandDivision) {
+    for (const std::string mnemonic : {"sllv", "srlv", "srav"}) {
+        expectErrorMessage([&] { parseInstruction({mnemonic, "$t0", "$t1", "4"}, 92); },
+                           "Line 92: Invalid register name: 4");
+    }
+    for (const std::string mnemonic : {"mult", "multu", "div", "divu"}) {
+        expectErrorMessage([&] { parseInstruction({mnemonic, "$t0", "$t1", "$t2"}, 93); },
+                           "Line 93: Expect 2 operands: " + mnemonic);
+    }
+    for (const std::string mnemonic : {"lh", "lhu", "sh"}) {
+        EXPECT_EQ(parseInstruction({mnemonic, "$t0", "-32768", "$sp"}).immediate, -32768);
+        EXPECT_EQ(parseInstruction({mnemonic, "$t0", "32767", "$sp"}).immediate, 32767);
+        for (const std::string immediate : {"-32769", "32768"}) {
+            expectErrorMessage([&] { parseInstruction({mnemonic, "$t0", immediate, "$sp"}, 94); },
+                               "Line 94: Integer does not fit in 16 signed bits: " + immediate);
+        }
+    }
+}
+
 TEST(ParserTest, ForwardsLineNumberToEveryNewRegisterOperand) {
     struct Case {
         std::vector<std::string> tokens;
         std::vector<std::size_t> registerIndices;
     };
     const std::vector<Case> cases = {
+        {{"mult", "$t1", "$t2"}, {1, 2}},
+        {{"multu", "$t1", "$t2"}, {1, 2}},
+        {{"div", "$t1", "$t2"}, {1, 2}},
+        {{"divu", "$t1", "$t2"}, {1, 2}},
+        {{"mfhi", "$t0"}, {1}},
+        {{"mflo", "$t0"}, {1}},
+        {{"mthi", "$t1"}, {1}},
+        {{"mtlo", "$t1"}, {1}},
+        {{"sllv", "$t0", "$t1", "$t2"}, {1, 2, 3}},
+        {{"srlv", "$t0", "$t1", "$t2"}, {1, 2, 3}},
+        {{"srav", "$t0", "$t1", "$t2"}, {1, 2, 3}},
+        {{"lh", "$t0", "12", "$sp"}, {1, 3}},
+        {{"lhu", "$t0", "12", "$sp"}, {1, 3}},
+        {{"sh", "$t0", "12", "$sp"}, {1, 3}},
         {{"addi", "$t0", "$t1", "1"}, {1, 2}},
         {{"addiu", "$t0", "$t1", "1"}, {1, 2}},
         {{"andi", "$t0", "$t1", "1"}, {1, 2}},
