@@ -14,7 +14,10 @@ enum class OperandFormat {
     NONE,
     RD_RS_RT,
     RD_RT_SHAMT,
+    RD_RT_RS,
+    RD,
     RS,
+    RS_RT,
 
     RT_RS_IMM,
     RT_IMM,

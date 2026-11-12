@@ -16,6 +16,18 @@ const std::unordered_map<std::string, InstructionInfo> instructionInfos = {
     {"sll",   {InstructionType::R, OperandFormat::RD_RT_SHAMT, 0x00, 0x00}},
     {"srl",   {InstructionType::R, OperandFormat::RD_RT_SHAMT, 0x00, 0x02}},
     {"sra",   {InstructionType::R, OperandFormat::RD_RT_SHAMT, 0x00, 0x03}},
+    {"sllv",  {InstructionType::R, OperandFormat::RD_RT_RS,    0x00, 0x04}},
+    {"srlv",  {InstructionType::R, OperandFormat::RD_RT_RS,    0x00, 0x06}},
+    {"srav",  {InstructionType::R, OperandFormat::RD_RT_RS,    0x00, 0x07}},
+
+    {"mult",  {InstructionType::R, OperandFormat::RS_RT,       0x00, 0x18}},
+    {"multu", {InstructionType::R, OperandFormat::RS_RT,       0x00, 0x19}},
+    {"div",   {InstructionType::R, OperandFormat::RS_RT,       0x00, 0x1A}},
+    {"divu",  {InstructionType::R, OperandFormat::RS_RT,       0x00, 0x1B}},
+    {"mfhi",  {InstructionType::R, OperandFormat::RD,          0x00, 0x10}},
+    {"mflo",  {InstructionType::R, OperandFormat::RD,          0x00, 0x12}},
+    {"mthi",  {InstructionType::R, OperandFormat::RS,          0x00, 0x11}},
+    {"mtlo",  {InstructionType::R, OperandFormat::RS,          0x00, 0x13}},
 
     {"jr",    {InstructionType::R, OperandFormat::RS,          0x00, 0x08}},
 
@@ -34,6 +46,9 @@ const std::unordered_map<std::string, InstructionInfo> instructionInfos = {
     {"lb",    {InstructionType::I, OperandFormat::RT_OFFSET_RS, 0x20, 0x00}},
     {"lbu",   {InstructionType::I, OperandFormat::RT_OFFSET_RS, 0x24, 0x00}},
     {"sb",    {InstructionType::I, OperandFormat::RT_OFFSET_RS, 0x28, 0x00}},
+    {"lh",    {InstructionType::I, OperandFormat::RT_OFFSET_RS, 0x21, 0x00}},
+    {"lhu",   {InstructionType::I, OperandFormat::RT_OFFSET_RS, 0x25, 0x00}},
+    {"sh",    {InstructionType::I, OperandFormat::RT_OFFSET_RS, 0x29, 0x00}},
 
     {"beq",   {InstructionType::I, OperandFormat::RS_RT_LABEL,  0x04, 0x00}},
     {"bne",   {InstructionType::I, OperandFormat::RS_RT_LABEL,  0x05, 0x00}},

@@ -92,6 +92,30 @@ Instruction parseInstruction(const std::vector<std::string>& tokens,
             break;
         }
 
+        case OperandFormat::RD_RT_RS:
+            if (tokens.size() != 4) {
+                error(mnemonic, "Expect 3 operands", lineNumber);
+            }
+            inst.rd = parseRegister(tokens[1], lineNumber);
+            inst.rt = parseRegister(tokens[2], lineNumber);
+            inst.rs = parseRegister(tokens[3], lineNumber);
+            break;
+
+        case OperandFormat::RD:
+            if (tokens.size() != 2) {
+                error(mnemonic, "Expect 1 operand", lineNumber);
+            }
+            inst.rd = parseRegister(tokens[1], lineNumber);
+            break;
+
+        case OperandFormat::RS_RT:
+            if (tokens.size() != 3) {
+                error(mnemonic, "Expect 2 operands", lineNumber);
+            }
+            inst.rs = parseRegister(tokens[1], lineNumber);
+            inst.rt = parseRegister(tokens[2], lineNumber);
+            break;
+
         case OperandFormat::RS:
             if (tokens.size() != 2) {
                 error(mnemonic, "Expect 1 operand", lineNumber);
