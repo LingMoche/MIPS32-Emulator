@@ -136,6 +136,7 @@ add_executable(emulator_tests
     tests/emulator/memory_test.cpp
     tests/emulator/loader_test.cpp
     tests/emulator/cpu_test.cpp
+    tests/emulator/syscall_test.cpp
 )
 
 target_link_libraries(emulator_tests PRIVATE

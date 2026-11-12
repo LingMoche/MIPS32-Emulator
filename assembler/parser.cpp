@@ -63,6 +63,12 @@ Instruction parseInstruction(const std::vector<std::string>& tokens,
     inst.mnemonic = mnemonic;
 
     switch (info.format) {
+        case OperandFormat::NONE:
+            if (tokens.size() != 1) {
+                error(mnemonic, "Expect 0 operands", lineNumber);
+            }
+            break;
+
         case OperandFormat::RD_RS_RT:
             if (tokens.size() != 4) {
                 error(mnemonic, "Expect 3 operands", lineNumber);

@@ -77,6 +77,10 @@ std::size_t Memory::findRegion(uint32_t address, std::size_t size) const {
     throw std::runtime_error("Memory range out of bounds");
 }
 
+void Memory::validateRange(uint32_t address, std::size_t size) const {
+    findRegion(address, size);
+}
+
 uint8_t Memory::readByte(uint32_t address) const {
     const auto& region = regions_[findRegion(address, 1)];
     return region.data[address - region.baseAddress];

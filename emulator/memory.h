@@ -25,6 +25,9 @@ public:
     uint32_t readWord(uint32_t address) const;
     void writeWord(uint32_t address, uint32_t value);
 
+    // Check that a complete range fits in one region, without accessing it.
+    void validateRange(uint32_t address, std::size_t size) const;
+
     // Print all mapped regions, or a byte range within one mapped region.
     // Invalid ranges throw before producing any output; an empty range is valid
     // at any address from the base through the end of the allocation.

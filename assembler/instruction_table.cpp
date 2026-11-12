@@ -1,6 +1,7 @@
 #include "instruction_table.h"
 
 const std::unordered_map<std::string, InstructionInfo> instructionInfos = {
+    {"syscall", {InstructionType::R, OperandFormat::NONE,      0x00, 0x0C}},
     {"add",   {InstructionType::R, OperandFormat::RD_RS_RT,    0x00, 0x20}},
     {"addu",  {InstructionType::R, OperandFormat::RD_RS_RT,    0x00, 0x21}},
     {"sub",   {InstructionType::R, OperandFormat::RD_RS_RT,    0x00, 0x22}},

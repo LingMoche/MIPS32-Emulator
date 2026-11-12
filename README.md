@@ -2,7 +2,7 @@
 
 The project provides a MIPS32 assembler that converts assembly source into
 hexadecimal text or binary machine code, and a CPU library that executes the
-31 instructions supported by the assembler. The CLI currently runs the assembler.
+32 instructions supported by the assembler. The CLI currently runs the assembler.
 
 ## Build and test
 
@@ -27,7 +27,7 @@ Assembler error handling lives in `assembler/error.h` and `assembler/error.cpp`.
 `add`, `addu`, `sub`, `subu`, `and`, `or`, `xor`, `nor`, `slt`, `sltu`,
 `sll`, `srl`, `sra`, `jr`, `addi`, `addiu`, `andi`, `ori`, `xori`,
 `slti`, `sltiu`, `lui`, `lw`, `sw`, `lb`, `lbu`, `sb`, `beq`, `bne`,
-`j`, and `jal`. The all-zero instruction executes as `nop`.
+`j`, `jal`, and `syscall`. The all-zero instruction executes as `nop`.
 
 This emulator uses a simplified control-flow convention with **no delay slots**:
 taken branches and jumps change the PC immediately, and `jal` saves `PC + 4`
@@ -43,6 +43,71 @@ little-endian; byte accesses may use any address. Unsupported instructions,
 misalignment, and invalid memory accesses throw `std::runtime_error`.
 Failed instructions leave the PC, registers, and memory unchanged. Exceptions
 are reported to the caller; architectural exception registers are not modeled.
+
+## Syscall services
+
+The assembler accepts `syscall` with no operands and encodes it as `0000000C`.
+The CPU implements the following subset of the
+[MARS/SPIM service convention](https://dpetersanderson.github.io/Help/SyscallHelp.html).
+Put the service number in `$v0`, arguments in `$a0`/`$a1`, then execute `syscall`.
+These are emulator services, not a Linux syscall ABI or architectural exception handler.
+
+| `$v0` | Service | Arguments and result |
+| --- | --- | --- |
+| 1 | Print integer | Print signed 32-bit `$a0` in decimal, without a newline. |
+| 4 | Print string | Print bytes starting at address `$a0`, stopping before NUL. |
+| 5 | Read integer | Read one decimal integer line; return its 32-bit value in `$v0`. |
+| 8 | Read string | `$a0` is a buffer address; signed `$a1` is its capacity including NUL. |
+| 10 | Exit | Halt the CPU with exit code 0. |
+| 11 | Print character | Print the low byte of `$a0`, without a newline. |
+| 12 | Read character | Read one byte, including whitespace; return it zero-extended in `$v0`. |
+| 17 | Exit with code | Halt the CPU with signed 32-bit exit code `$a0`. |
+
+Service 5 consumes an entire line (or the final line before EOF), accepts surrounding
+whitespace and an optional sign, and rejects trailing non-whitespace or values outside
+the signed 32-bit range. Its decimal parsing is independent of input stream formatting.
+Service 8 reads at most `capacity - 1` bytes, retaining a newline if one is encountered,
+then writes a NUL. Excess input remains available for the next read. A capacity of 1
+writes only NUL without reading; nonpositive capacities do nothing, ignoring the address.
+For positive capacities the entire buffer must fit in one mapped memory region, and
+it is validated before reading input. A partial string at EOF succeeds; EOF before
+any input byte (services 5, 8 with capacity greater than 1, and 12) throws.
+String services operate on bytes; they do not convert character encodings.
+
+Unknown services, invalid string addresses, malformed input, and stream failures
+throw `std::runtime_error`, preserving PC, registers, memory and halt state.
+An unterminated print string is rejected before any output. Host input already consumed
+and output already written cannot be rolled back after an error. Output services flush
+their stream and preserve its formatting. Heap allocation, file I/O and floating-point
+services are not implemented.
+
+`CPU(memory)` uses `std::cin` and `std::cout`. Pass streams to redirect I/O; they must
+outlive the CPU. A successful exit advances PC past the syscall, sets `isHalted()`,
+and exposes the exit code through `getExitCode()`. Further `step()` calls do nothing.
+`reset()` clears the halt state and exit code, preserving memory and stream state.
+The host process remains running.
+
+```cpp
+std::istringstream input("42\n");           // Include <sstream>
+std::ostringstream output;
+CPU cpu(memory, input, output);            // Program already loaded into memory
+for (unsigned steps = 0; !cpu.isHalted() && steps < 100000; ++steps) {
+    cpu.step();
+}
+// Check cpu.isHalted() to distinguish exit from exhausting the step limit.
+```
+
+For example, this program prints `42` and exits (it uses no pseudo-instructions):
+
+```asm
+addiu $a0, $zero, 42
+addiu $v0, $zero, 1
+syscall
+addiu $v0, $zero, 10
+syscall
+```
+
+The CLI assembles this program; execution currently uses the CPU library API.
 
 ## Printing runtime state
 

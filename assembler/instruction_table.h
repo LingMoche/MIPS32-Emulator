@@ -11,6 +11,7 @@ enum class InstructionType {
 };
 
 enum class OperandFormat {
+    NONE,
     RD_RS_RT,
     RD_RT_SHAMT,
     RS,

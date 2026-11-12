@@ -4,6 +4,8 @@
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
+#include <locale>
+#include <string>
 
 namespace {
 // Interpret two's-complement bits without implementation-defined signed casts.
@@ -28,14 +30,16 @@ void requireWordAlignment(uint32_t address) {
 }
 }  // namespace
 
-CPU::CPU(Memory& memory)
-    : memory_(memory) {
+CPU::CPU(Memory& memory, std::istream& input, std::ostream& output)
+    : memory_(memory), input_(input), output_(output) {
     reset();
 }
 
 void CPU::reset() {
     registers_.fill(0);
     pc_ = TEXT_BASE;
+    halted_ = false;
+    exitCode_ = 0;
     registers_[29] = STACK_TOP;
 }
 
@@ -59,6 +63,14 @@ uint32_t CPU::getPC() const {
     return pc_;
 }
 
+bool CPU::isHalted() const {
+    return halted_;
+}
+
+int32_t CPU::getExitCode() const {
+    return exitCode_;
+}
+
 void CPU::printState(std::ostream& output) const {
     static constexpr const char* names[] = {
         "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
@@ -78,6 +90,9 @@ void CPU::printState(std::ostream& output) const {
 }
 
 void CPU::step() {
+    if (halted_) {
+        return;
+    }
     requireWordAlignment(pc_);
     const auto inst = decodeInstruction(memory_.readWord(pc_));
     uint32_t nextPC = pc_ + 4;
@@ -108,6 +123,9 @@ void CPU::execute(const DecodedInstruction& inst, uint32_t& nextPC) {
                 case 0x08:  // jr
                     requireWordAlignment(rs);
                     nextPC = rs;
+                    return;
+                case 0x0C:
+                    executeSyscall();
                     return;
                 case 0x20: result = checkedResult(signedWord(rs) + signedWord(rt)); break;
                 case 0x21: result = rs + rt; break;  // addu
@@ -172,5 +190,99 @@ void CPU::execute(const DecodedInstruction& inst, uint32_t& nextPC) {
             return;
         }
         default: throw std::runtime_error("Unsupported instruction");
+    }
+}
+
+void CPU::executeSyscall() {
+    const uint32_t service = getRegister(2);  // $v0
+    const uint32_t argument = getRegister(4); // $a0
+    std::string text;
+    switch (service) {
+        case 1: // print signed integer in decimal, regardless of stream flags
+            text = std::to_string(signedWord(argument));
+            break;
+        case 4: { // print null-terminated bytes; validate before any output
+            uint64_t address = argument;
+            for (;;) {
+                if (address > std::numeric_limits<uint32_t>::max()) {
+                    throw std::runtime_error("Syscall string wraps around address space");
+                }
+                const auto byte = memory_.readByte(static_cast<uint32_t>(address++));
+                if (byte == 0) {
+                    break;
+                }
+                text.push_back(static_cast<char>(byte));
+            }
+            break;
+        }
+        case 5: { // consume one decimal integer line
+            std::string line;
+            if (!std::getline(input_, line) || input_.bad()) {
+                throw std::runtime_error("Syscall failed to read integer");
+            }
+            std::istringstream parser(line);
+            parser.imbue(std::locale::classic());
+            int64_t value;
+            if (!(parser >> value) || value < std::numeric_limits<int32_t>::min() ||
+                value > std::numeric_limits<int32_t>::max()) {
+                throw std::runtime_error("Syscall expected a signed 32-bit decimal integer");
+            }
+            parser >> std::ws;
+            if (!parser.eof()) {
+                throw std::runtime_error("Syscall expected a signed 32-bit decimal integer");
+            }
+            setRegister(2, static_cast<uint32_t>(value));
+            return;
+        }
+        case 8: { // fgets-style read into $a0, capacity (including NUL) in $a1
+            const auto length = signedWord(getRegister(5));
+            if (length <= 0) {
+                return;
+            }
+            memory_.validateRange(argument, static_cast<std::size_t>(length));
+            for (int64_t i = 0; i < length - 1; ++i) {
+                const auto byte = input_.get();
+                if (byte == std::char_traits<char>::eof()) {
+                    if (input_.bad() || !input_.eof() || text.empty()) {
+                        throw std::runtime_error("Syscall failed to read string");
+                    }
+                    break;
+                }
+                text.push_back(static_cast<char>(byte));
+                if (byte == '\n') {
+                    break;
+                }
+            }
+            // All input and range validation succeeded before changing memory.
+            for (std::size_t i = 0; i < text.size(); ++i) {
+                memory_.writeByte(argument + static_cast<uint32_t>(i),
+                                  static_cast<uint8_t>(text[i]));
+            }
+            memory_.writeByte(argument + static_cast<uint32_t>(text.size()), 0);
+            return;
+        }
+        case 10: // terminate only the emulated program
+        case 17:
+            exitCode_ = service == 10 ? 0 : static_cast<int32_t>(signedWord(argument));
+            halted_ = true;
+            return;
+        case 11:
+            text.push_back(static_cast<char>(argument & 0xFFu));
+            break;
+        case 12: {
+            const auto byte = input_.get();
+            if (byte == std::char_traits<char>::eof() || input_.bad()) {
+                throw std::runtime_error("Syscall failed to read character");
+            }
+            setRegister(2, static_cast<unsigned char>(byte));
+            return;
+        }
+        default:
+            throw std::runtime_error("Unsupported syscall service: " + std::to_string(service));
+    }
+    output_.write(text.data(), static_cast<std::streamsize>(text.size()));
+    output_.flush();
+    if (!output_) {
+        throw std::runtime_error("Syscall failed to write output");
     }
 }
