@@ -150,6 +150,7 @@ INSTANTIATE_TEST_SUITE_P(
     EverySupportedMnemonic,
     SupportedInstructionEncodingTest,
     ::testing::Values(
+        EncodingCase{"syscall", 0, 0, 0, 0,    0,          0, 0x0000000Cu},
         EncodingCase{"add",   9, 10, 8, 0,      0,          0, 0x012A4020u},
         EncodingCase{"addu",  9, 10, 8, 0,      0,          0, 0x012A4021u},
         EncodingCase{"sub",   9, 10, 8, 0,      0,          0, 0x012A4022u},

@@ -8,6 +8,21 @@
 #include <fstream>
 #include <stdexcept>
 
+TEST(AssemblerTest, EncodesSyscallAndCountsItWhenResolvingLabels) {
+    EXPECT_EQ(assemble({{1, "j done"}, {2, "syscall # service in $v0"},
+                        {3, "done:"}, {4, "syscall"}}),
+              (std::vector<uint32_t>{0x08100002u, 0x0000000Cu, 0x0000000Cu}));
+}
+
+TEST(AssemblerTest, RejectsSyscallOperandsWithLineNumber) {
+    try {
+        assemble({{42, "syscall 1"}});
+        FAIL() << "Expected invalid syscall operands";
+    } catch (const std::runtime_error& exception) {
+        EXPECT_EQ(std::string(exception.what()), "Line 42: Expect 0 operands: syscall");
+    }
+}
+
 namespace {
 
 class TemporaryAssemblyFile {

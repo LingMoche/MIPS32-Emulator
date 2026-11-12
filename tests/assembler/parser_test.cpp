@@ -299,6 +299,7 @@ TEST(ParserTest, ParsesEverySupportedMnemonicAndInitializesUnusedFields) {
         std::string label;
     };
     const std::vector<Case> cases = {
+        {{"syscall"}, 0, 0, 0, 0, 0, ""},
         {{"add", "$t0", "$t1", "$t2"}, 9, 10, 8, 0, 0, ""},
         {{"addu", "$t0", "$t1", "$t2"}, 9, 10, 8, 0, 0, ""},
         {{"sub", "$t0", "$t1", "$t2"}, 9, 10, 8, 0, 0, ""},
