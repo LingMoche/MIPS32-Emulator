@@ -83,6 +83,48 @@ TEST(MemoryTest, WritesAndReadsByte) {
     );
 }
 
+TEST(MemoryTest, ReadsHalfwordsFromLittleEndianBytes) {
+    Memory memory(TEXT_BASE, 4, 0);
+    memory.writeByte(TEXT_BASE, 0x01);
+    memory.writeByte(TEXT_BASE + 1, 0x80);
+    memory.writeByte(TEXT_BASE + 2, 0xFF);
+    memory.writeByte(TEXT_BASE + 3, 0x7F);
+    EXPECT_EQ(memory.readHalfWord(TEXT_BASE), 0x8001u);
+    EXPECT_EQ(memory.readHalfWord(TEXT_BASE + 2), 0x7FFFu);
+    // Raw memory access is byte-addressed; instruction alignment is checked by CPU.
+    EXPECT_EQ(memory.readHalfWord(TEXT_BASE + 1), 0xFF80u);
+}
+
+TEST(MemoryTest, WritesHalfwordsWithoutChangingAdjacentBytes) {
+    Memory memory(TEXT_BASE, 4, 0);
+    memory.writeWord(TEXT_BASE, 0xAABBCCDDu);
+    memory.writeHalfWord(TEXT_BASE + 1, 0x8001u);
+    EXPECT_EQ(memory.readByte(TEXT_BASE), 0xDD);
+    EXPECT_EQ(memory.readByte(TEXT_BASE + 1), 0x01);
+    EXPECT_EQ(memory.readByte(TEXT_BASE + 2), 0x80);
+    EXPECT_EQ(memory.readByte(TEXT_BASE + 3), 0xAA);
+}
+
+TEST(MemoryTest, HalfwordCrossingRegionBoundaryFailsBeforeWritingAnyByte) {
+    Memory memory(TEXT_BASE, 1, 0);
+    memory.writeByte(TEXT_BASE, 0xAA);
+    EXPECT_THROW(memory.readHalfWord(TEXT_BASE), std::runtime_error);
+    EXPECT_THROW(memory.writeHalfWord(TEXT_BASE, 0x1234u), std::runtime_error);
+    EXPECT_EQ(memory.readByte(TEXT_BASE), 0xAA);
+    EXPECT_THROW(memory.readHalfWord(TEXT_BASE - 1), std::runtime_error);
+}
+
+TEST(MemoryTest, HalfwordsAtTopOfAddressSpaceDoNotWrap) {
+    Memory memory(0xFFFFFFFEu, 2, 0);
+    memory.writeHalfWord(0xFFFFFFFEu, 0xABCDu);
+    EXPECT_EQ(memory.readByte(0xFFFFFFFEu), 0xCD);
+    EXPECT_EQ(memory.readByte(0xFFFFFFFFu), 0xAB);
+    EXPECT_EQ(memory.readHalfWord(0xFFFFFFFEu), 0xABCDu);
+    EXPECT_THROW(memory.readHalfWord(0xFFFFFFFFu), std::runtime_error);
+    EXPECT_THROW(memory.writeHalfWord(0xFFFFFFFFu, 0x1234u), std::runtime_error);
+    EXPECT_EQ(memory.readHalfWord(0xFFFFFFFEu), 0xABCDu);
+}
+
 TEST(MemoryTest, ReadsLittleEndianWord) {
     Memory memory(TEXT_BASE, 1024);
 

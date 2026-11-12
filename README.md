@@ -2,7 +2,7 @@
 
 The project provides a MIPS32 assembler that converts assembly source into
 hexadecimal text or binary machine code, and a CPU library that executes the
-32 instructions supported by the assembler. The CLI currently runs the assembler.
+46 instructions supported by the assembler. The CLI currently runs the assembler.
 
 ## Build and test
 
@@ -27,7 +27,9 @@ Assembler error handling lives in `assembler/error.h` and `assembler/error.cpp`.
 `add`, `addu`, `sub`, `subu`, `and`, `or`, `xor`, `nor`, `slt`, `sltu`,
 `sll`, `srl`, `sra`, `jr`, `addi`, `addiu`, `andi`, `ori`, `xori`,
 `slti`, `sltiu`, `lui`, `lw`, `sw`, `lb`, `lbu`, `sb`, `beq`, `bne`,
-`j`, `jal`, and `syscall`. The all-zero instruction executes as `nop`.
+`j`, `jal`, `syscall`, `mult`, `multu`, `div`, `divu`, `mfhi`, `mflo`,
+`mthi`, `mtlo`, `lh`, `lhu`, `sh`, `sllv`, `srlv`, and `srav`.
+The all-zero instruction executes as `nop`.
 
 This emulator uses a simplified control-flow convention with **no delay slots**:
 taken branches and jumps change the PC immediately, and `jal` saves `PC + 4`
@@ -38,11 +40,60 @@ absolute jumps combine the upper four bits of `PC + 4` with the shifted target.
 Signed `add`, `addi`, and `sub` throw `std::overflow_error` on overflow;
 unsigned arithmetic wraps modulo 2^32. Logical immediates are zero-extended;
 arithmetic, comparison, and memory offsets are sign-extended (including `sltiu`).
-Word accesses and register jump targets must be four-byte aligned. Memory is
+Word accesses and register jump targets must be four-byte aligned; halfword
+instructions require two-byte alignment. Memory is
 little-endian; byte accesses may use any address. Unsupported instructions,
 misalignment, and invalid memory accesses throw `std::runtime_error`.
-Failed instructions leave the PC, registers, and memory unchanged. Exceptions
+Failed instructions leave the PC, general-purpose registers, HI/LO, and memory unchanged. Exceptions
 are reported to the caller; architectural exception registers are not modeled.
+
+### Multiply, divide and HI/LO
+
+`mult rs, rt` multiplies signed 32-bit operands; `multu rs, rt` multiplies unsigned
+operands. Both replace HI with the upper 32 bits and LO with the lower 32 bits of
+the full 64-bit product, without a multiplication overflow error.
+
+`div rs, rt` divides signed operands, rounding the quotient toward zero; a nonzero
+remainder has the dividend's sign. `divu rs, rt` divides unsigned operands. Both
+replace LO with the quotient and HI with the remainder, leaving general-purpose
+registers unchanged. Only the two-register instruction form is accepted.
+
+This emulator reports division by zero as `std::runtime_error`, and signed
+`INT32_MIN / -1` as `std::overflow_error`, preserving all CPU state on either error.
+This is an emulator diagnostic policy: the
+[MIPS32 instruction reference](https://pages.hmc.edu/harris/class/e155/11/MIPS32InstructionSet.pdf)
+specifies that integer division does not raise an architectural arithmetic exception.
+
+`mfhi rd` / `mflo rd` copy HI / LO into a general-purpose register; writing `$zero`
+discards the value. `mthi rs` / `mtlo rs` replace only the named special register.
+HI and LO initialize to zero, are cleared by `reset()`, and can be inspected using
+`getHI()`, `getLO()`, or `printState()`. Results are available to the next instruction;
+instruction latency and pipeline hazards are not modeled.
+
+```asm
+addiu $t0, $zero, -7
+addiu $t1, $zero, 3
+mult $t0, $t1
+mflo $s0                  # -21
+mfhi $s1                  # 0xFFFFFFFF, upper half of the signed product
+div $t0, $t1
+mflo $s2                  # -2, quotient
+mfhi $s3                  # -1, remainder
+```
+
+### Halfwords and variable shifts
+
+`lh rt, offset(rs)` loads a little-endian 16-bit halfword with sign extension;
+`lhu` zero-extends it. `sh rt, offset(rs)` stores the low 16 bits of `rt`, preserving
+adjacent bytes. Offsets are signed 16-bit values; effective addresses use 32-bit
+wrapping addition and must be even. Invalid halfword accesses throw before changing
+CPU state or memory. The raw `Memory::readHalfWord` / `writeHalfWord` API checks the
+complete two-byte range without enforcing instruction alignment, matching the word API.
+
+`sllv rd, rt, rs`, `srlv rd, rt, rs`, and `srav rd, rt, rs` shift `rt` by the low
+five bits of `rs` (0 through 31). The shift amount is a register, not an immediate.
+`srav` fills vacated bits with the sign bit; `srlv` fills them with zeroes. These
+instructions preserve HI/LO and support a destination that aliases either source.
 
 ## Syscall services
 
@@ -114,7 +165,7 @@ The CLI assembles this program; execution currently uses the CPU library API.
 Call these read-only methods whenever a runtime snapshot is needed:
 
 ```cpp
-cpu.printState();                         // PC and all 32 registers to stdout
+cpu.printState();                         // PC, HI/LO and all 32 registers to stdout
 memory.printState();                      // All mapped regions, including stack
 memory.printState(TEXT_BASE, 64);          // 64 bytes starting at TEXT_BASE
 
@@ -123,7 +174,7 @@ cpu.printState(snapshot);
 memory.printState(TEXT_BASE, 16, snapshot);
 ```
 
-CPU output includes register aliases and numeric indices, with eight-digit
+CPU output includes PC and HI/LO, plus general-purpose register aliases and numeric indices, with eight-digit
 uppercase hexadecimal values. Memory output includes the starting address and
 byte count, followed by up to 16 hexadecimal bytes per addressed row in increasing
 address order. The final row may be shorter; byte ranges need not be aligned.
