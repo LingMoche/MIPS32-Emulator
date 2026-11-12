@@ -94,6 +94,21 @@ void Memory::writeByte(
     region.data[address - region.baseAddress] = value;
 }
 
+uint16_t Memory::readHalfWord(uint32_t address) const {
+    const auto& region = regions_[findRegion(address, 2)];
+    const auto index = static_cast<std::size_t>(address - region.baseAddress);
+    return static_cast<uint16_t>(uint32_t{region.data[index]} |
+                                 (uint32_t{region.data[index + 1]} << 8));
+}
+
+void Memory::writeHalfWord(uint32_t address, uint16_t value) {
+    auto& region = regions_[findRegion(address, 2)];
+    const auto index = static_cast<std::size_t>(address - region.baseAddress);
+    // Validate both bytes before modifying either byte.
+    region.data[index] = static_cast<uint8_t>(value);
+    region.data[index + 1] = static_cast<uint8_t>(value >> 8);
+}
+
 uint32_t Memory::readWord(
     uint32_t address
 ) const {

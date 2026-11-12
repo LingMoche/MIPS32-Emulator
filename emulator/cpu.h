@@ -22,13 +22,16 @@ public:
     uint32_t getRegister(uint8_t index) const;
     void setRegister(uint8_t index, uint32_t value);
 
+    uint32_t getHI() const;
+    uint32_t getLO() const;
+
     // Program counter
     uint32_t getPC() const;
 
     bool isHalted() const;
     int32_t getExitCode() const;
 
-    // Print PC and all general-purpose registers without changing CPU state.
+    // Print PC, HI/LO and all general-purpose registers without changing CPU state.
     void printState(std::ostream& output = std::cout) const;
 
     // Execute one instruction, without branch delay slots (jal links PC + 4).
@@ -39,6 +42,8 @@ public:
 private:
     std::array<uint32_t, 32> registers_{};
     uint32_t pc_ = TEXT_BASE;
+    uint32_t hi_ = 0;
+    uint32_t lo_ = 0;
     bool halted_ = false;
     int32_t exitCode_ = 0;
 

@@ -28,6 +28,20 @@ void requireWordAlignment(uint32_t address) {
         throw std::runtime_error("Unaligned word address");
     }
 }
+
+void requireHalfWordAlignment(uint32_t address) {
+    if ((address & 1u) != 0) {
+        throw std::runtime_error("Unaligned halfword address");
+    }
+}
+
+uint32_t arithmeticShiftRight(uint32_t value, uint32_t amount) {
+    uint32_t result = value >> amount;
+    if ((value & 0x80000000u) && amount != 0) {
+        result |= 0xFFFFFFFFu << (32 - amount);
+    }
+    return result;
+}
 }  // namespace
 
 CPU::CPU(Memory& memory, std::istream& input, std::ostream& output)
@@ -38,6 +52,8 @@ CPU::CPU(Memory& memory, std::istream& input, std::ostream& output)
 void CPU::reset() {
     registers_.fill(0);
     pc_ = TEXT_BASE;
+    hi_ = 0;
+    lo_ = 0;
     halted_ = false;
     exitCode_ = 0;
     registers_[29] = STACK_TOP;
@@ -57,6 +73,14 @@ void CPU::setRegister(uint8_t index, uint32_t value) {
     if (index != 0) {
         registers_[index] = value;
     }
+}
+
+uint32_t CPU::getHI() const {
+    return hi_;
+}
+
+uint32_t CPU::getLO() const {
+    return lo_;
 }
 
 uint32_t CPU::getPC() const {
@@ -80,7 +104,9 @@ void CPU::printState(std::ostream& output) const {
     };
     std::ostringstream text;
     text << "CPU state\n" << std::hex << std::uppercase << std::setfill('0')
-         << "PC = 0x" << std::setw(8) << pc_ << '\n';
+         << "PC = 0x" << std::setw(8) << pc_ << '\n'
+         << "HI = 0x" << std::setw(8) << hi_ << '\n'
+         << "LO = 0x" << std::setw(8) << lo_ << '\n';
     for (std::size_t i = 0; i < registers_.size(); ++i) {
         text << '$' << names[i] << " (r" << std::dec << i << ") = 0x"
              << std::hex << std::setw(8) << registers_[i] << '\n';
@@ -114,12 +140,10 @@ void CPU::execute(const DecodedInstruction& inst, uint32_t& nextPC) {
             switch (inst.funct) {
                 case 0x00: result = rt << inst.shamt; break;  // sll / nop
                 case 0x02: result = rt >> inst.shamt; break;  // srl
-                case 0x03:  // sra: explicitly fill the sign bits
-                    result = rt >> inst.shamt;
-                    if ((rt & 0x80000000u) && inst.shamt != 0) {
-                        result |= 0xFFFFFFFFu << (32 - inst.shamt);
-                    }
-                    break;
+                case 0x03: result = arithmeticShiftRight(rt, inst.shamt); break;
+                case 0x04: result = rt << (rs & 31u); break;  // sllv
+                case 0x06: result = rt >> (rs & 31u); break;  // srlv
+                case 0x07: result = arithmeticShiftRight(rt, rs & 31u); break;
                 case 0x08:  // jr
                     requireWordAlignment(rs);
                     nextPC = rs;
@@ -127,6 +151,38 @@ void CPU::execute(const DecodedInstruction& inst, uint32_t& nextPC) {
                 case 0x0C:
                     executeSyscall();
                     return;
+                case 0x10: result = hi_; break;  // mfhi
+                case 0x12: result = lo_; break;  // mflo
+                case 0x11: hi_ = rs; return;     // mthi
+                case 0x13: lo_ = rs; return;     // mtlo
+                case 0x18:  // mult
+                case 0x19: { // multu
+                    const uint64_t product = inst.funct == 0x18
+                        ? static_cast<uint64_t>(signedWord(rs) * signedWord(rt))
+                        : uint64_t{rs} * rt;
+                    hi_ = static_cast<uint32_t>(product >> 32);
+                    lo_ = static_cast<uint32_t>(product);
+                    return;
+                }
+                case 0x1A:  // div
+                case 0x1B: { // divu
+                    if (rt == 0) {
+                        throw std::runtime_error("Division by zero");
+                    }
+                    if (inst.funct == 0x1A) {
+                        if (rs == 0x80000000u && rt == 0xFFFFFFFFu) {
+                            throw std::overflow_error("Signed division overflow");
+                        }
+                        const auto dividend = signedWord(rs);
+                        const auto divisor = signedWord(rt);
+                        lo_ = static_cast<uint32_t>(dividend / divisor);
+                        hi_ = static_cast<uint32_t>(dividend % divisor);
+                    } else {
+                        lo_ = rs / rt;
+                        hi_ = rs % rt;
+                    }
+                    return;
+                }
                 case 0x20: result = checkedResult(signedWord(rs) + signedWord(rt)); break;
                 case 0x21: result = rs + rt; break;  // addu
                 case 0x22: result = checkedResult(signedWord(rs) - signedWord(rt)); break;
@@ -172,6 +228,17 @@ void CPU::execute(const DecodedInstruction& inst, uint32_t& nextPC) {
             setRegister(inst.rt, value);
             return;
         }
+        case 0x21:  // lh
+        case 0x25: { // lhu
+            const uint32_t address = rs + extended;
+            requireHalfWordAlignment(address);
+            uint32_t value = memory_.readHalfWord(address);
+            if (inst.opcode == 0x21 && (value & 0x8000u)) {
+                value |= 0xFFFF0000u;
+            }
+            setRegister(inst.rt, value);
+            return;
+        }
         case 0x23: {  // lw
             const uint32_t address = rs + extended;
             requireWordAlignment(address);
@@ -181,6 +248,12 @@ void CPU::execute(const DecodedInstruction& inst, uint32_t& nextPC) {
         case 0x28:  // sb
             memory_.writeByte(rs + extended, static_cast<uint8_t>(rt));
             return;
+        case 0x29: { // sh
+            const uint32_t address = rs + extended;
+            requireHalfWordAlignment(address);
+            memory_.writeHalfWord(address, static_cast<uint16_t>(rt));
+            return;
+        }
         case 0x2B: {  // sw
             const uint32_t address = rs + extended;
             requireWordAlignment(address);
